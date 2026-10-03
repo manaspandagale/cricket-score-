@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Cricket Score</title>
+    <style>
+        /* Modern CSS variables and reset */
+        :root {
+            --primary: #1e3a8a; /* Deep blue */
+            --secondary: #e11d48; /* Crimson red */
+            --bg-color: #f1f5f9; /* Light gray-blue */
+            --card-bg: #ffffff;
+            --text-dark: #1e293b;
+            --text-light: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-dark); line-height: 1.5; }
+        
+        /* Layout */
+        .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+        .grid { display: grid; gap: 20px; }
+        @media (min-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr 1fr; }
+            .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        }
+        
+        /* Navbar */
+        .navbar { background: var(--primary); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .navbar h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: 0.5px; }
+        .status-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+        .dot { width: 10px; height: 10px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+        
+        /* Cards */
+        .card { background: var(--card-bg); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); overflow: hidden; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; }
+        .card-title { font-size: 1.1rem; font-weight: 600; color: var(--text-dark); text-transform: uppercase; }
+        
+        /* Hero Match Card */
+        .hero-card { text-align: center; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; }
+        .match-teams { font-size: 1.5rem; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px; }
+        .match-badge { background: var(--secondary); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; }
+        .main-score { font-size: 4.5rem; font-weight: 800; line-height: 1; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+        .main-overs { font-size: 1.5rem; opacity: 0.9; margin-left: 10px; }
+        .hero-stats { display: flex; justify-content: center; gap: 30px; margin-top: 20px; font-size: 1.1rem; flex-wrap: wrap; }
+        .hero-stats div { background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 8px; backdrop-filter: blur(5px); margin-bottom: 5px; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #e2e8f0; }
+        th { font-size: 0.85rem; text-transform: uppercase; color: var(--text-light); font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        .highlight { font-weight: 700; color: var(--text-dark); }
+        .out-status { color: var(--secondary); font-size: 0.85rem; font-weight: 600; }
+        
+        /* Recent Balls */
+        .recent-over { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .ball-badge { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; color: white; background: var(--text-light); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .ball-badge.wicket { background: var(--secondary); }
+        .ball-badge.boundary-4 { background: var(--primary); }
+        .ball-badge.boundary-6 { background: var(--success); }
+        .ball-badge.dot { background: #94a3b8; }
+        
+        /* Info List */
+        .info-list { display: flex; flex-direction: column; gap: 12px; }
+        .info-item { display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px dashed #e2e8f0; }
+        .info-label { color: var(--text-light); font-weight: 500; }
+        .info-value { font-weight: 600; text-align: right; }
+        
+        /* Loading & Error */
+        #loading { text-align: center; padding: 40px; color: var(--text-light); }
+        #error { background: #fee2e2; color: #ef4444; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; text-align: center; border: 1px solid #f87171; }
+        
+        /* Utilities */
+        .hidden { display: none; }
+        .text-center { text-align: center; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <h1>CRICKET SCORE PLATFORM</h1>
+        <div class="status-indicator">
+            <div class="dot" id="connDot"></div>
+            <span id="connStatus">Live Polling</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="error">Connection lost. Retrying... <button onclick="updateDashboard()" style="margin-left: 10px; padding: 2px 8px;">Retry</button></div>
+        
+        <div id="dashboardData">
+            <!-- Hero Card -->
+            <div class="card hero-card grid">
+                <div>
+                    <div class="match-teams">
+                        <span id="heroTeams">Loading...</span>
+                        <span class="match-badge" id="heroStatus">LIVE</span>
+                    </div>
+                    <div>
+                        <span class="main-score"><span id="heroScore">-</span>/<span id="heroWickets">-</span></span>
+                        <span class="main-overs"><span id="heroOvers">-</span> Ov</span>
+                    </div>
+                    <div class="hero-stats">
+                        <div>Run Rate: <strong id="heroRunRate">-</strong></div>
+                        <div>Target: <strong id="heroTarget">-</strong></div>
+                        <div>Req RR: <strong id="heroReqRate">-</strong></div>
+                        <div>Balls Remaining: <strong id="heroBallsRem">-</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-2" style="margin-top: 20px;">
+                <!-- Batters -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Current Batters</h2>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr>
+                            </thead>
+                            <tbody id="activeBattersTable"><tr><td colspan="6" class="text-center">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                    
+                    <h3 style="font-size: 0.9rem; margin-top: 25px; margin-bottom: 10px; color: var(--text-light); text-transform: uppercase;">Dismissed</h3>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <tbody id="outBattersTable">
+                                <tr><td class="text-center" style="color:var(--text-light)">None</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Bowlers -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Current Bowler</h2>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr><th>Bowler</th><th>O</th><th>R</th><th>W</th><th>ECON</th></tr>
+                            </thead>
+                            <tbody id="bowlersTable"><tr><td colspan="5" class="text-center">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-2" style="margin-top: 20px;">
+                <!-- Recent Balls -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Ball Events</h2>
+                    </div>
+                    <div class="recent-over" id="recentBallsContainer">
+                        <span class="text-light">Loading events...</span>
+                    </div>
+                </div>
+
+                <!-- Match Info -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Match Information</h2>
+                    </div>
+                    <div class="info-list">
+                        <div class="info-item"><span class="info-label">Match</span><span class="info-value" id="infoMatch">-</span></div>
+                        <div class="info-item"><span class="info-label">Format</span><span class="info-value" id="infoFormat">-</span></div>
+                        <div class="info-item"><span class="info-label">Venue</span><span class="info-value" id="infoVenue">-</span></div>
+                        <div class="info-item"><span class="info-label">Toss</span><span class="info-value" id="infoToss">-</span></div>
+                        <div class="info-item"><span class="info-label">Status</span><span class="info-value" id="infoStatus">-</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const matchId = 1;
+        const errBox = document.getElementById('error');
+        const connDot = document.getElementById('connDot');
+        const connStatus = document.getElementById('connStatus');
+
+        function showError() {
+            errBox.style.display = 'block';
+            connDot.style.background = '#ef4444'; // red
+            connDot.style.animation = 'none';
+            connStatus.innerText = 'Disconnected';
+        }
+
+        function hideError() {
+            errBox.style.display = 'none';
+            connDot.style.background = '#10b981'; // green
+            connDot.style.animation = 'pulse 2s infinite';
+            connStatus.innerText = 'Live Polling';
+        }
+
+        async function fetchAPI(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("API Error");
+            return res.json();
+        }
+
+        async function updateDashboard() {
+            try {
+                // Fetch all data concurrently
+                const [scoreData, statsData, eventsData, summaryData] = await Promise.all([
+                    fetchAPI(`/api/matches/${matchId}/score`),
+                    fetchAPI(`/api/matches/${matchId}/stats`),
+                    fetchAPI(`/api/matches/${matchId}/events/recent`),
+                    fetchAPI(`/api/matches/${matchId}/summary`)
+                ]);
+
+                hideError();
+
+                // 1. Hero Card Update
+                if(summaryData && summaryData.teamA && summaryData.teamB) {
+                    document.getElementById('heroTeams').innerText = `${summaryData.teamA.shortName} vs ${summaryData.teamB.shortName}`;
+                    document.getElementById('infoMatch').innerText = `${summaryData.teamA.name} vs ${summaryData.teamB.name}`;
+                    document.getElementById('infoFormat').innerText = summaryData.matchType;
+                    document.getElementById('infoVenue').innerText = summaryData.venue;
+                    document.getElementById('infoStatus').innerText = summaryData.matchStatus;
+                    
+                    if(summaryData.tossWinner) {
+                        document.getElementById('infoToss').innerText = `${summaryData.tossWinner.shortName} won, chose to ${summaryData.tossDecision}`;
+                    }
+                }
+
+                // Score Update
+                document.getElementById('heroScore').innerText = scoreData.score || 0;
+                document.getElementById('heroWickets').innerText = scoreData.wickets || 0;
+                document.getElementById('heroOvers').innerText = scoreData.overs || "0.0";
+                document.getElementById('heroRunRate').innerText = (scoreData.runRate || 0).toFixed(2);
+                document.getElementById('heroTarget').innerText = scoreData.target || "-";
+                document.getElementById('heroReqRate').innerText = scoreData.requiredRunRate ? scoreData.requiredRunRate.toFixed(2) : "-";
+                document.getElementById('heroBallsRem').innerText = scoreData.ballsRemaining || "-";
+
+                // 2. Stats (Batters & Bowlers)
+                const batters = statsData.filter(s => s.player.role !== "BOWLER" || s.ballsFaced > 0);
+                const bowlers = statsData.filter(s => s.ballsBowled > 0);
+
+                let activeBattersHTML = '';
+                let outBattersHTML = '';
+
+                batters.forEach(b => {
+                    const sr = b.ballsFaced > 0 ? ((b.runs / b.ballsFaced) * 100).toFixed(2) : "0.00";
+                    const row = `<tr>
+                        <td class="highlight">${b.player.name} ${b.status==='NOT_OUT'?'*':''}</td>
+                        <td class="highlight">${b.runs}</td>
+                        <td>${b.ballsFaced}</td>
+                        <td>${b.fours}</td>
+                        <td>${b.sixes}</td>
+                        <td>${sr}</td>
+                    </tr>`;
+                    
+                    if(b.status === 'NOT_OUT' || b.status === 'NOT OUT') {
+                        activeBattersHTML += row;
+                    } else {
+                        outBattersHTML += `<tr>
+                            <td class="highlight" style="color:var(--text-light)">${b.player.name}</td>
+                            <td class="highlight" style="color:var(--text-light)">${b.runs} (${b.ballsFaced})</td>
+                            <td class="out-status">OUT</td>
+                        </tr>`;
+                    }
+                });
+                
+                document.getElementById('activeBattersTable').innerHTML = activeBattersHTML || `<tr><td colspan="6" class="text-center">No active batters</td></tr>`;
+                document.getElementById('outBattersTable').innerHTML = outBattersHTML || `<tr><td class="text-center" style="color:var(--text-light)">None</td></tr>`;
+
+                // Bowlers Table
+                let bowlersHTML = '';
+                bowlers.forEach(b => {
+                    const overs = Math.floor(b.ballsBowled / 6) + "." + (b.ballsBowled % 6);
+                    const eco = b.ballsBowled > 0 ? ((b.runsConceded / b.ballsBowled) * 6).toFixed(2) : "0.00";
+                    bowlersHTML += `<tr>
+                        <td class="highlight">${b.player.name}</td>
+                        <td>${overs}</td>
+                        <td>${b.runsConceded}</td>
+                        <td class="highlight" style="color:var(--primary)">${b.wickets}</td>
+                        <td>${eco}</td>
+                    </tr>`;
+                });
+                document.getElementById('bowlersTable').innerHTML = bowlersHTML || `<tr><td colspan="5" class="text-center">No bowlers yet</td></tr>`;
+
+                // 3. Recent Balls
+                let ballsHTML = '';
+                eventsData.slice(0, 10).reverse().forEach(e => {
+                    let text = "", cls = "";
+                    if(e.eventType === 'WICKET') { text = "W"; cls = "wicket"; }
+                    else if(e.eventType === 'FOUR') { text = "4"; cls = "boundary-4"; }
+                    else if(e.eventType === 'SIX') { text = "6"; cls = "boundary-6"; }
+                    else if(e.runs === 0 && (e.extras||0) === 0) { text = "0"; cls = "dot"; }
+                    else { text = e.runs + ((e.extras||0) > 0 ? "wd" : ""); cls = "normal"; }
+                    
+                    ballsHTML += `<div class="ball-badge ${cls}">${text}</div>`;
+                });
+                document.getElementById('recentBallsContainer').innerHTML = ballsHTML || "No recent events";
+
+            } catch (err) {
+                console.error(err);
+                showError();
+            }
+        }
+
+        // Initialize and Poll
+        updateDashboard();
+        setInterval(updateDashboard, 2000);
+    </script>
+    <footer style="text-align: center; padding: 20px; color: var(--text-light); margin-top: 20px; font-size: 0.9em;">Developed by Manas</footer>
+</body>
+</html>
